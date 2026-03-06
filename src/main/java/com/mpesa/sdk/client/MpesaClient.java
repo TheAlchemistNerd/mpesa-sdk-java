@@ -2,7 +2,9 @@ package com.mpesa.sdk.client;
 
 import com.mpesa.sdk.auth.MpesaAuthClient;
 import com.mpesa.sdk.config.MpesaSdkConfig;
-import org.springframework.web.reactive.function.client.WebClient;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
 
 /**
  * Unified entry point for the M-Pesa SDK.
@@ -17,18 +19,20 @@ public class MpesaClient {
     private final ReversalClient reversal;
 
     public MpesaClient(MpesaSdkConfig config) {
-        this(config, WebClient.builder());
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build());
     }
 
-    public MpesaClient(MpesaSdkConfig config, WebClient.Builder webClientBuilder) {
-        MpesaAuthClient authClient = new MpesaAuthClient(webClientBuilder, config);
+    public MpesaClient(MpesaSdkConfig config, HttpClient httpClient) {
+        MpesaAuthClient authClient = new MpesaAuthClient(httpClient, config);
 
-        this.stkPush = new StkPushClient(webClientBuilder, config, authClient);
-        this.b2c = new B2CClient(webClientBuilder, config, authClient);
-        this.c2b = new C2BClient(webClientBuilder, config, authClient);
-        this.balance = new AccountBalanceClient(webClientBuilder, config, authClient);
-        this.status = new TransactionStatusClient(webClientBuilder, config, authClient);
-        this.reversal = new ReversalClient(webClientBuilder, config, authClient);
+        this.stkPush = new StkPushClient(httpClient, config, authClient);
+        this.b2c = new B2CClient(httpClient, config, authClient);
+        this.c2b = new C2BClient(httpClient, config, authClient);
+        this.balance = new AccountBalanceClient(httpClient, config, authClient);
+        this.status = new TransactionStatusClient(httpClient, config, authClient);
+        this.reversal = new ReversalClient(httpClient, config, authClient);
     }
 
     public StkPushClient stkPush() {

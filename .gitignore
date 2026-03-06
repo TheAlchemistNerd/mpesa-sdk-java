@@ -10,3 +10,4 @@ bin/
 *.log
 *.tmp
 commit_details.txt
+.env

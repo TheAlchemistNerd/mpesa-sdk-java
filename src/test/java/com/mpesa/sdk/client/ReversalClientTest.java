@@ -9,9 +9,9 @@ import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,15 +37,15 @@ class ReversalClientTest {
                 .callbackBaseUrl("http://localhost:8080")
                 .build();
 
-        WebClient.Builder webClientBuilder = WebClient.builder();
-        MpesaAuthClient authClient = new MpesaAuthClient(webClientBuilder, config) {
+        HttpClient httpClient = HttpClient.newHttpClient();
+        MpesaAuthClient authClient = new MpesaAuthClient(httpClient, config) {
             @Override
             public String getAccessToken() {
                 return "test_token";
             }
         };
 
-        reversalClient = new ReversalClient(webClientBuilder, config, authClient);
+        reversalClient = new ReversalClient(httpClient, config, authClient);
     }
 
     @AfterEach

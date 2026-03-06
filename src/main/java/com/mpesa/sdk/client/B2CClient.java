@@ -1,13 +1,17 @@
 package com.mpesa.sdk.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mpesa.sdk.auth.MpesaAuthClient;
 import com.mpesa.sdk.config.MpesaSdkConfig;
 import com.mpesa.sdk.model.b2c.B2CRequest;
 import com.mpesa.sdk.model.b2c.B2CResponse;
 import com.mpesa.sdk.security.MpesaSecurityUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.UUID;
 
 /**
@@ -16,12 +20,13 @@ import java.util.UUID;
 @Slf4j
 public class B2CClient {
 
-    private final WebClient webClient;
+    private final HttpClient httpClient;
     private final MpesaSdkConfig config;
     private final MpesaAuthClient authClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public B2CClient(WebClient.Builder webClientBuilder, MpesaSdkConfig config, MpesaAuthClient authClient) {
-        this.webClient = webClientBuilder.baseUrl(config.getBaseUrl()).build();
+    public B2CClient(HttpClient httpClient, MpesaSdkConfig config, MpesaAuthClient authClient) {
+        this.httpClient = httpClient;
         this.config = config;
         this.authClient = authClient;
     }
@@ -59,14 +64,23 @@ public class B2CClient {
         String token = authClient.getAccessToken();
 
         try {
-            return webClient.post()
-                    .uri("/mpesa/b2c/v3/paymentrequest")
+            String jsonPayload = objectMapper.writeValueAsString(request);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(config.getBaseUrl() + "/mpesa/b2c/v3/paymentrequest"))
                     .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(request)
-                    .retrieve()
-                    .bodyToMono(B2CResponse.class)
-                    .block();
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                log.error("B2C initiation failed with status {}: {}", response.statusCode(), response.body());
+                throw new RuntimeException("B2C payment failed. Status: " + response.statusCode());
+            }
+
+            return objectMapper.readValue(response.body(), B2CResponse.class);
         } catch (Exception e) {
             log.error("B2C initiation failed", e);
             throw new RuntimeException("B2C payment failed", e);

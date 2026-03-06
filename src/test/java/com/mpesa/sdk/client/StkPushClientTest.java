@@ -9,10 +9,9 @@ import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
-import java.util.Map;
+import java.net.http.HttpClient;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,15 +36,15 @@ class StkPushClientTest {
                 .callbackBaseUrl("http://localhost:8080")
                 .build();
 
-        WebClient.Builder webClientBuilder = WebClient.builder();
-        MpesaAuthClient authClient = new MpesaAuthClient(webClientBuilder, testConfig) {
+        HttpClient httpClient = HttpClient.newHttpClient();
+        MpesaAuthClient authClient = new MpesaAuthClient(httpClient, testConfig) {
             @Override
             public String getAccessToken() {
                 return "test_token";
             }
         };
 
-        stkPushClient = new StkPushClient(webClientBuilder, testConfig, authClient);
+        stkPushClient = new StkPushClient(httpClient, testConfig, authClient);
     }
 
     @AfterEach
