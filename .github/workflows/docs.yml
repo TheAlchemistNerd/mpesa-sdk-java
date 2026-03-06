@@ -20,8 +20,13 @@ jobs:
         cache: maven
     - name: Generate Javadoc
       run: ./mvnw javadoc:javadoc
+    - name: Prepare Documentation
+      run: |
+        mkdir public
+        cp -r docs/* public/
+        cp -r target/site/apidocs public/javadoc
     - name: Deploy to GitHub Pages
       uses: JamesIves/github-pages-deploy-action@v4
       with:
-        folder: target/site/apidocs
+        folder: public
         branch: gh-pages

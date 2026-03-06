@@ -2,17 +2,13 @@
 
 This guide provides best practices for integrating the **M-Pesa Daraja SDK** into your existing Java or Spring Boot application.
 
-## 1. Spring Boot Integration: Convention over Configuration
+## 1. Spring Boot Integration
 
-The SDK is designed with a **"Convention over Configuration"** philosophy. When used within a Spring Boot environment, you can get up and running with minimal boilerplate by following standard Spring patterns.
-
-### Why "Convention over Configuration"?
--   **Standardized Naming**: All model fields use standard MPesa casing, mapped via Jackson.
--   **Predictable URL Patterns**: Callbacks are automatically derived from a single base URL.
--   **Bean-Ready**: The `MpesaClient` is designed to be easily exposed as a `@Bean`, allowing for dependency injection throughout your app.
+The SDK is designed to be easily integrated into Spring Boot applications by exposing the `MpesaClient` as a bean.
 
 ### Step A: Define a Configuration Bean
-Instead of manual instantiation in every service, define the client once.
+
+Instead of manual instantiation in every service, define the client once in a configuration class.
 
 ```java
 @Configuration
@@ -26,28 +22,31 @@ public class MpesaConfig {
 
     @Value("${mpesa.shortcode}")
     private String shortcode;
-    
-    // ... other fields
+
+    @Value("${mpesa.passkey}")
+    private String passkey;
 
     @Bean
-    public com.mpesa.sdk.client.MpesaClient mpesaClient() {
+    public MpesaClient mpesaClient() {
         MpesaSdkConfig config = MpesaSdkConfig.builder()
-            .environment("sandbox")
+            .environment("sandbox") // or "production"
             .consumerKey(consumerKey)
             .consumerSecret(consumerSecret)
             .shortcode(shortcode)
+            .passkey(passkey)
             .initiatorName("testapi")
-            .initiatorPassword("Safaricom999!$")
+            .initiatorPassword("test_password")
             .certificatePath("certs/SandboxCertificate.cer")
             .callbackBaseUrl("https://api.myservice.com/mpesa")
             .build();
 
-        return new com.mpesa.sdk.client.MpesaClient(config);
+        return new MpesaClient(config);
     }
 }
 ```
 
 ### Step B: Inject and Use
+
 Inject the `MpesaClient` into your services. Spring handles the lifecycle and wiring automatically.
 
 ```java
@@ -56,43 +55,43 @@ public class PaymentService {
 
     private final MpesaClient mpesa;
 
+    @Autowired
     public PaymentService(MpesaClient mpesa) {
         this.mpesa = mpesa;
     }
 
     public void checkout(String phone, Double amount) {
         StkPushResponse res = mpesa.stkPush().initiate(amount, phone, "REF-1", "Desc");
+        // Logic for handling response
     }
 }
 ```
 
-## 2. Advanced Configuration: Customizing WebClient
+## 2. Advanced Configuration: Customizing HttpClient
 
-For high-scale or specialized production environments, you might need to customize the underlying HTTP engine (timeouts, connection pooling, proxy settings).
+The SDK uses the native Java `HttpClient` (introduced in Java 11). For high-scale or specialized production environments, you might need to customize the underlying HTTP engine (timeouts, proxy settings, etc.).
 
-The `MpesaClient` supports an optional `WebClient.Builder` constructor, allowing you to inject a pre-configured builder.
+The `MpesaClient` allows you to inject your own `HttpClient` instance.
 
 ```java
 @Bean
-public MpesaClient mpesaClient(WebClient.Builder webClientBuilder) {
-    // Customizing Netty timeouts
-    HttpClient httpClient = HttpClient.create()
-        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
-        .responseTimeout(Duration.ofSeconds(10));
-
-    webClientBuilder.clientConnector(new ReactorClientHttpConnector(httpClient));
+public MpesaClient mpesaClient() {
+    // Custom native HttpClient
+    HttpClient customHttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
 
     MpesaSdkConfig config = ... // load config
-    return new MpesaClient(config, webClientBuilder);
+    return new MpesaClient(config, customHttpClient);
 }
 ```
 
 ---
 
 ## 3. Handling Callbacks (Webhooks)
-...
 
-Callbacks are the most critical part of the integration. This is how you know if a payment actually succeeded.
+Callbacks are critical for knowing the final result of an asynchronous transaction (like STK Push or B2C).
 
 ### Callback Endpoint Structure
 Safaricom will POST a JSON payload to your specified URLs.
@@ -113,7 +112,7 @@ Safaricom will POST a JSON payload to your specified URLs.
 ```
 
 ### Implementing the Controller
-We recommend creating a specialized controller to handle these.
+In a Spring Boot environment, you can handle these with a standard `@RestController`.
 
 ```java
 @RestController
@@ -121,43 +120,32 @@ We recommend creating a specialized controller to handle these.
 public class MpesaCallbackController {
 
     @PostMapping("/stk/callback")
-    public String handleStk(@RequestBody String payload) {
+    public ResponseEntity<String> handleStk(@RequestBody String payload) {
         // 1. Log the payload for audit trails
-        // 2. Map to a JSON node or DTO
-        // 3. Extract CheckoutRequestID
-        // 4. Update transaction status in DB based on ResultCode
-        return "Success";
+        // 2. Parse payload using Jackson
+        // 3. Update transaction status in DB based on ResultCode
+        return ResponseEntity.ok("Success");
     }
 }
 ```
 
-## 3. Idempotency and Reliability
+## 4. Idempotency and Reliability
 
 Financial systems must be idempotent—processing the same request twice should not result in two payments.
 
 1.  **Unique References**: Always provide a unique `accountReference` for STK Push.
-2.  **Tracking IDs**: Store the `CheckoutRequestID` (STK) or `ConversationID` (B2C) as soon as you receive the synchronous response. Use this ID as a primary key or unique index in your transaction table.
-3.  **Handling Delayed Callbacks**: If no callback is received within 2 minutes for an STK Push, use the `TransactionStatusClient` to query the status manually.
+2.  **Tracking IDs**: Store the `CheckoutRequestID` (STK) or `ConversationID` (B2C) as soon as you receive the synchronous response.
+3.  **Handling Delayed Callbacks**: If no callback is received within a reasonable window, use the `TransactionStatusClient` (for B2C/C2B) or query specific statuses manually.
 
-## 4. Production Deployment Considerations
+## 5. Production Deployment Considerations
 
 ### Certificate Management
 When deploying to **Docker** or **Kubernetes**:
--   Mount the `.cer` file as a **ConfigMap** or **Secret**.
--   Ensure the environment variable `MPESA_CERT_PATH` points to the absolute path where the file is mounted.
+-   Mount the `.cer` file as a **Secret**.
+-   Ensure the `certificatePath` in your configuration points to the absolute path where the secret is mounted.
 
 ### Resource Tuning
-The SDK uses WebClient, which runs on Netty. Ensure your server has enough file descriptors if you expect high traffic.
-
-## 5. C2B URL Registration
-
-For C2B (Paybill/Till) to work, you MUST register your URLs once. You can do this via a simple script or a one-time startup task in your application.
-
-```java
-mpesa.c2b().registerUrls();
-```
-
-Safaricom will then send all customer payments (Paybill) to your `validationUrl` (where you can accept/reject the payment) and your `confirmationUrl` (where the final receipt is sent).
+The native `HttpClient` is efficient, but ensure your server has appropriate connection limits and resource allocation for high-traffic scenarios.
 
 ---
-*For a complete example of a full Spring Boot integration, check the [examples/spring-boot-demo] folder.*
+*For a complete example, refer to the unit tests in the `src/test` directory.*

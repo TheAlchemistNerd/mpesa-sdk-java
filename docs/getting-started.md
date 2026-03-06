@@ -102,7 +102,7 @@ if ("0".equals(response.responseCode())) {
 
 Now that you have the basic setup running, you should explore:
 - **[Architecture Guide](./architecture.md)**: Deep dive into how the SDK is structured.
-- **[Integration Guide](./integration-guide.md)**: How to handle callbacks and integrate with Spring Boot.
+- **[Integration Guide](./integration-guide.md)**: How to handle callbacks and integrate with your application.
 - **[Security Guide](./security.md)**: Understanding encryption and token management.
 - **[API Reference](./api-reference.md)**: Complete list of all clients and models.
 

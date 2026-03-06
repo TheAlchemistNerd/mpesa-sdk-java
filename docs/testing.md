@@ -71,7 +71,7 @@ We recommend writing integration tests that verify:
 
 ## 5. Performance Testing
 
-Since the SDK uses the reactive `WebClient`, you can performance test it using tools like **JMeter** or **Gatling**.
+Since the SDK uses the native Java `HttpClient`, you can performance test it using tools like **JMeter** or **Gatling**.
 -   Monitor CPU and Memory usage.
 -   Verify that the non-blocking nature allows your application to handle many simultaneous STK push initiations without exhausting the thread pool.
 
