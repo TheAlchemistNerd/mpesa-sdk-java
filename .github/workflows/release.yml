@@ -21,6 +21,8 @@ jobs:
         gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
         gpg-passphrase: GPG_PASSPHRASE
 
+    - name: Make Maven Wrapper Executable
+      run: chmod +x mvnw
     - name: Publish to Maven Central
       run: ./mvnw --no-transfer-progress clean deploy -P release
       env:

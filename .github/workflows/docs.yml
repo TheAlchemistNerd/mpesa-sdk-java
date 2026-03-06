@@ -18,6 +18,8 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
+    - name: Make Maven Wrapper Executable
+      run: chmod +x mvnw
     - name: Generate Javadoc
       run: ./mvnw javadoc:javadoc
     - name: Prepare Documentation
