@@ -1,0 +1,12 @@
+target/
+*.class
+.mvn/
+.project
+.settings/
+.classpath
+.factorypath
+.vscode/
+bin/
+*.log
+*.tmp
+commit_details.txt
